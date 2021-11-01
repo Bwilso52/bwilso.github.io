@@ -1,0 +1,186 @@
+---
+title: "Capstone Project"
+author: "Brandon Wilson"
+date: "10/31/2021"
+output: html_document
+---
+
+## Capstone Project
+
+For my Capstone Project, I took the role of a Data Analyst working for a fictional bike-share company called Cyclistic. Cyclistic was looking to convert there casual users into members but needed to find out how. I was assigned the task of figuring out how casual users usage of bikes differed from member usage.
+
+## Data Cleaning and Preparation
+
+To prepare my data for analysis, I began by installing the necessary packages:
+
+```{r}
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("ggplot2")
+
+library(tidyverse)
+library(lubridate)
+library(ggplot2)
+```
+$$\\[.1in]$$
+I then moved forward with uploading my data sets:
+$$\\[.1in]$$
+```{r}
+q3_2019 <- read_csv("Divvy_Trips_2019_Q3.csv")
+
+q4_2019 <- read_csv("Divvy_Trips_2019_Q4.csv")
+
+q1_2020 <- read_csv("Divvy_Trips_2020_Q1.csv")
+```
+$$\\[.1in]$$
+After analyzing the current data sets I had to rename some of the Q3 and Q4 column names in order to match with the Q1 column names:
+$$\\[.1in]$$
+
+
+```{r}
+(q3_2019 <- rename(q3_2019, ride_id = trip_id, rideable_type = bikeid, started_at = start_time, ended_at = end_time, start_station_name = from_station_name, start_station_id = from_station_id, end_station_name = to_station_name, end_station_id = to_station_id, member_casual = usertype))
+```
+
+```{r}
+(q4_2019 <- rename(q4_2019, ride_id = trip_id, rideable_type = bikeid, started_at = start_time, ended_at = end_time, start_station_name = from_station_name, start_station_id = from_station_id, end_station_name = to_station_name, end_station_id = to_station_id, member_casual = usertype))
+```
+
+$$\\[.1in]$$
+I checked the tables for any further issues and had to convert ride_id and rideable_type to character so they could be combined correctly:
+$$\\[.1in]$$
+
+
+```{r}
+str(q3_2019)
+```
+
+```{r}
+str(q4_2019)
+```
+
+```{r}
+str(q1_2020)
+```
+```{r}
+q3_2019 <- mutate(q3_2019, ride_id = as.character(ride_id), rideable_type = as.character(rideable_type))
+```
+
+```{r}
+q4_2019 <- mutate(q4_2019, ride_id = as.character(ride_id), rideable_type = as.character(rideable_type))
+```
+$$\\[.1in]$$
+I could then combine the tables into one and get rid of unneccesary columns:
+$$\\[.1in]$$
+```{r}
+all_trips <- bind_rows(q1_2020, q3_2019, q4_2019)
+```
+
+```{r}
+all_trips <- all_trips %>%
+  select(-c(start_lat, start_lng, end_lat, end_lng, birthyear, gender, "tripduration"))
+```
+$$\\[.1in]$$
+The member_casual column had two different names for members and casuals so they had to be changed to be consistent:
+$$\\[.1in]$$
+```{r}
+all_trips <- all_trips%>%
+  mutate(member_casual = recode(member_casual, "Subscriber" = "member", "Customer" = "casual"))
+```
+$$\\[.1in]$$
+I then added new columns to provide a more detailed analyses:
+$$\\[.1in]$$
+
+```{r}
+all_trips$date <- as.Date(all_trips$started_at)
+all_trips$month <- format(as.Date(all_trips$date), "%m")
+all_trips$day <- format(as.Date(all_trips$date), "%d")
+all_trips$year <- format(as.Date(all_trips$date), "%Y")
+all_trips$day_of_week <- format(as.Date(all_trips$date), "%A")
+all_trips$ride_length <- difftime(all_trips$ended_at, all_trips$started_at)
+```
+$$\\[.1in]$$
+Up next was converting my ride_length calculation to a numeric:
+$$\\[.1in]$$
+```{r}
+all_trips$ride_length <- as.numeric(as.character(all_trips$ride_length))
+is.numeric(all_trips$ride_length)
+```
+$$\\[.1in]$$
+Next, I removed bad data and converted the data into a new clean table:
+$$\\[.1in]$$
+```{r}
+ all_trips_v2 <- all_trips[!(all_trips$start_station_name == "HQ QR" | all_trips$ride_length<0),]
+```
+
+$$//[.1in]$$
+
+## Analysis
+$$\\[.1in]$$
+I began my analysis by looking at a summary of my new table:
+$$\\[.1in]$$
+```{r}
+summary(all_trips_v2)
+```
+
+$$\\[.1in]$$
+Next I looked at some comparisons between casual and member usage:
+$$\\[.1in]$$
+
+```{r}
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual, FUN = mean)
+```
+
+
+
+```{r}
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = mean)
+```
+$$\\[.1in]$$
+The days of the week were not in order so I rearanged them:
+$$\\[.1in]$$
+```{r}
+all_trips_v2$day_of_week <- ordered(all_trips_v2$day_of_week, levels= c("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+```
+
+```{r}
+aggregate(all_trips_v2$ride_length ~ all_trips_v2$member_casual + all_trips_v2$day_of_week, FUN = median)
+```
+$$\\[.1in]$$
+I then analyzed ridership data by type and weekday:
+$$\\[.1in]$$
+```{r}
+all_trips_v2 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday)
+```
+$$\\[.1in]$$
+Number of riders by ride day:
+$$\\[.1in]$$
+```{r}
+all_trips_v2 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarise(number_of_ride = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = number_of_ride, fill = member_casual)) + geom_col (position = "dodge")
+```
+$$\\[.1in]$$
+And lastly I created a visualization for average duration:
+$$\\[.1in]$$
+```{r}
+all_trips_v2 %>%
+  mutate(weekday = wday(started_at, label = TRUE)) %>%
+  group_by(member_casual, weekday) %>%
+  summarise(number_of_rides = n(), average_duration = mean(ride_length)) %>%
+  arrange(member_casual, weekday) %>%
+  ggplot(aes(x = weekday, y = average_duration, fill = member_casual)) + geom_col(postion = "dodge")
+```
+$$\\[.1in]$$
+
+## Conclusion
+$$\\[.1in]$$
+Through analysis of the data I was able to find multiple insights that would help Cyclistics convert casual users into members. 
+  By looking at the graph depicting the number of rides by day of the week, it was clear that casual riders were more likely to use the bikes over the weekend while members were more likey to ride during the week. It is possible the members are using bikes as transportation to work while casual members are using them for leisure activities over the weekend. Looking at the graph depicting the average duration of rides per day of the week it was clear that casual members were riding much longer than members as well.
+  In conclusion, the best way for Cyclistics to convert casual riders to members is to add advantages for members with longer ride durations as well as benefits for over the weekend use. By focusing on how casual riders use the bikes, understanding what would appeal to them becomes much easier. 
